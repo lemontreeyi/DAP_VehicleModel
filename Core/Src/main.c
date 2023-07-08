@@ -41,7 +41,7 @@ typedef enum
 
 /* Private define ------------------------------------------------------------*/
 /* USER CODE BEGIN PD */
-#define MAX_LENGTH 1300
+#define MAX_LENGTH 1536
 #define HEAD_LENGTH 15
 #define BUFFE_SIZE 256
 /* USER CODE END PD */
@@ -51,23 +51,28 @@ typedef enum
 
 /**************属性上报消息构造**************/
 char Tx_str[BUFFE_SIZE] = "AT+HMPUB=1,\"$oc/devices/649a72522a3b1d3de71e9e81_car01/sys/properties/report\",87,\"{\\\"services\\\":[{\\\"service_id\\\":\\\"car_01\\\",\\\"properties\\\":{\\\"location\\\":[";
+char Tx_FlagSet[BUFFE_SIZE] = "AT+HMPUB=1,\"$oc/devices/649a72522a3b1d3de71e9e81_car01/sys/properties/report\",66,\"{\\\"services\\\":[{\\\"service_id\\\":\\\"car_01\\\",\\\"properties\\\":{\\\"car_stop\\\":1}}]}\"\r\n";
+char Tx_FlagReset[BUFFE_SIZE] = "AT+HMPUB=1,\"$oc/devices/649a72522a3b1d3de71e9e81_car01/sys/properties/report\",66,\"{\\\"services\\\":[{\\\"service_id\\\":\\\"car_01\\\",\\\"properties\\\":{\\\"car_stop\\\":0}}]}\"\r\n";
 uint16_t stableTx_length = 0;
 /***************命令下发响应消息构造*****************/
 char responseMessage[BUFFE_SIZE] = "AT+HMPUB=1,\"$oc/devices/649a72522a3b1d3de71e9e81_car01/sys/commands/response/";
-uint16_t stableResponse_length = 0;
+uint16_t stableResponse_length_cmd = 0;
+char responseProperties[BUFFE_SIZE] = "AT+HMPUB=1,\"$oc/devices/649a72522a3b1d3de71e9e81_car01/sys/properties/set/response/";
+uint16_t stableResponse_length_flag = 0;
 char *strstr(const char *, const char *);
 /* USER CODE END PM */
 
 /* Private variables ---------------------------------------------------------*/
 
 /* USER CODE BEGIN PV */
-char *strx, *strx_head, *strx_end;
+char *strx, *strx_head, *strx_end, *strx_properties;
 char RxBuffer[MAX_LENGTH] = {0};
 uint16_t Rxcounter = 0;
 char Buffer_total[MAX_LENGTH] = {0};
 uint16_t TotalCounter = 0;
 bool initStatus = False;
 bool UART_Frame_Flag = False;
+bool StopFlag = False;
 /***********json解析变量***********/
 cJSON *root = NULL;
 cJSON *location_array = NULL;
@@ -98,7 +103,7 @@ void Clear_TotalBuffer(void)
   memset(Buffer_total, 0, TotalCounter + 1);
   TotalCounter = 0;
   strx = NULL;
-  strx_head = strx_end = NULL;
+  strx_head = strx_end = strx_properties = NULL;
 }
 
 //生成属性上报消息包
@@ -117,7 +122,7 @@ void Generate_dynamicPart(char *dest, double lng, double lat)
 bool GetcJSON_Object()
 {
   //找到json数据的指针
-  char *start_ptr = strstr(Buffer_total, "{\"paras\":");
+  char *start_ptr = strstr(Buffer_total, "{\"paras\":{\"location_array\":");
   if (!start_ptr)
     return False;
   //提取出完整的json数据字符串
@@ -143,8 +148,8 @@ bool GetcJSON_Object()
   location_index = 0;
   return True;
 }
-//获取下发命令响应消息
-void GetResponseMessage(bool status)
+//获取下发命令响应消息, 并响应给华为云
+void ResponseCommandMessage(bool status)
 {
   char *request_id = strstr(Buffer_total, "request_id=");
   char *request_end = strchr(request_id, '\"');
@@ -157,7 +162,25 @@ void GetResponseMessage(bool status)
   //拼接完成响应消息后，返回给华为云
   uart_L610_send(responseMessage);
   //清理可变部分，以便下次再用
-  memset(responseMessage + stableResponse_length, 0, BUFFE_SIZE - stableResponse_length);
+  memset(responseMessage + stableResponse_length_cmd, 0, BUFFE_SIZE - stableResponse_length_cmd);
+  printf("okk2\r\n");
+}
+void ResponseFlagMessage(bool status)
+{
+  char *request_id = strstr(Buffer_total, "request_id=");
+  char *request_end = strchr(request_id, '\"');
+  uint16_t length = request_end - request_id;
+  strncat(responseProperties, request_id, length);
+  if (status == True)
+    strcat(responseProperties, "\",17,\"{\\\"result_code\\\":0}\"\r\n");
+  else
+    strcat(responseProperties, "\",17,\"{\\\"result_code\\\":1}\"\r\n");
+  //拼接完成响应消息后，返回给华为云
+  uart_L610_send(responseProperties);
+  //清理可变部分，以便下次再用
+  memset(responseProperties + stableResponse_length_flag, 0, BUFFE_SIZE - stableResponse_length_flag);
+  // printf("%s\n", responseProperties);
+  printf("okk1\r\n");
 }
 
 /* USER CODE END PFP */
@@ -232,6 +255,7 @@ void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef *htim)
   UNUSED(htim);
   if (htim->Instance == TIM2)
   {
+    HAL_GPIO_TogglePin(LED0_GPIO_Port, LED0_Pin);
     if (location_length > 0)
     {
       HAL_GPIO_TogglePin(LED1_GPIO_Port, LED1_Pin);
@@ -247,7 +271,10 @@ void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef *htim)
       //清理Tx_str, 只清理动态变化的部分
       memset(Tx_str + stableTx_length, 0, BUFFE_SIZE - stableTx_length);
       if (location_index >= location_length)
+      {
         Clear_cJSON();
+        StopFlag = True;
+      }
     }
   }
 }
@@ -384,27 +411,53 @@ int main(void)
   UART_Frame_Flag = False;
   //获取上报属性消息固定长度
   stableTx_length = strlen(Tx_str);
-  //获取下发命令响应消息固定长度
-  stableResponse_length = strlen(responseMessage);
+  stableResponse_length_cmd = strlen(responseMessage);
+  stableResponse_length_flag = strlen(responseProperties);
   //绿色状态灯亮起
   HAL_Delay(500);
   HAL_GPIO_WritePin(LED1_GPIO_Port, LED1_Pin, GPIO_PIN_RESET);
+  Clear_TotalBuffer();
   while (1)
   {
+    if(StopFlag == True)
+    {
+      HAL_Delay(100);
+      uart_L610_send(Tx_FlagSet);
+      StopFlag = False;
+    }
     if (UART_Frame_Flag == True)
     {
       strx_head = strstr(Buffer_total, "+HMREC");
+      if(strx_head) 
+        printf("%s", Buffer_total);
       strx_end = strstr(Buffer_total, "\"SendArray\"}\"\r\n");
-      printf("head address: %p, end address: %p\n", strx_head, strx_end);
+      // printf("head address: %p, end address: %p\n", strx_head, strx_end);
       //校验下发命令的包头包尾都正确
       if (strx_head && strx_end)
       {
-        printf("%s", Buffer_total);
+        // printf("%s", Buffer_total);
         Clear_cJSON();
         bool status = GetcJSON_Object();
-        GetResponseMessage(status);
+        ResponseCommandMessage(status);
+        Clear_TotalBuffer();
       }
-      Clear_TotalBuffer();
+      //收到停车状态重置命令
+      if (strx_head && !strx_end)
+      {
+        printf("%s", Buffer_total);
+        strx_properties = strstr(Buffer_total, "\"car_stop\":0}}]}\"\r\n");
+        if (strx_properties)
+        {
+          printf("update properties...\n");
+          //重置停车状态
+          ResponseFlagMessage(True);
+          HAL_Delay(100);
+          uart_L610_send(Tx_FlagReset);
+          printf("resetflag success...\n");
+          Clear_TotalBuffer();
+        }
+      }
+      if(!strx_head) Clear_TotalBuffer();
       UART_Frame_Flag = False;
     }
     /* USER CODE END WHILE */
