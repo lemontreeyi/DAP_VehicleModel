@@ -1,22 +1,22 @@
 {
     "configurations": [
         {
-            "name": "DAP_F750",
+            "name": "DAP_VehicleModel_F407",
             "includePath": [
-                "f:\\Lemon\\Desktop\\sscom\\MCU\\DAP_F750\\Core\\Inc",
-                "f:\\Lemon\\Desktop\\sscom\\MCU\\DAP_F750\\Drivers\\STM32F7xx_HAL_Driver\\Inc",
-                "f:\\Lemon\\Desktop\\sscom\\MCU\\DAP_F750\\Drivers\\STM32F7xx_HAL_Driver\\Inc\\Legacy",
-                "f:\\Lemon\\Desktop\\sscom\\MCU\\DAP_F750\\Drivers\\CMSIS\\Device\\ST\\STM32F7xx\\Include",
-                "f:\\Lemon\\Desktop\\sscom\\MCU\\DAP_F750\\Drivers\\CMSIS\\Include",
+                "f:\\Lemon\\Desktop\\sscom\\MCU\\DAP_VehicleModel_F407\\Inc",
+                "f:\\Lemon\\Desktop\\sscom\\MCU\\DAP_VehicleModel_F407\\Drivers\\STM32F4xx_HAL_Driver\\Inc",
+                "f:\\Lemon\\Desktop\\sscom\\MCU\\DAP_VehicleModel_F407\\Drivers\\STM32F4xx_HAL_Driver\\Inc\\Legacy",
+                "f:\\Lemon\\Desktop\\sscom\\MCU\\DAP_VehicleModel_F407\\Drivers\\CMSIS\\Device\\ST\\STM32F4xx\\Include",
+                "f:\\Lemon\\Desktop\\sscom\\MCU\\DAP_VehicleModel_F407\\Drivers\\CMSIS\\Include",
                 "F:\\Tools\\Keil_v5\\ARM\\ARMCC\\include",
                 "F:\\Tools\\Keil_v5\\ARM\\ARMCC\\include\\rw",
-                "f:\\Lemon\\Desktop\\sscom\\MCU\\DAP_F750\\MDK-ARM",
-                "f:\\Lemon\\Desktop\\sscom\\MCU\\DAP_F750\\Core\\Src",
-                "f:\\Lemon\\Desktop\\sscom\\MCU\\DAP_F750\\Drivers\\STM32F7xx_HAL_Driver\\Src"
+                "f:\\Lemon\\Desktop\\sscom\\MCU\\DAP_VehicleModel_F407\\MDK-ARM",
+                "f:\\Lemon\\Desktop\\sscom\\MCU\\DAP_VehicleModel_F407\\Src",
+                "f:\\Lemon\\Desktop\\sscom\\MCU\\DAP_VehicleModel_F407\\Drivers\\STM32F4xx_HAL_Driver\\Src"
             ],
             "defines": [
                 "USE_HAL_DRIVER",
-                "STM32F750xx",
+                "STM32F407xx",
                 "__CC_ARM",
                 "__arm__",
                 "__align(x)=",

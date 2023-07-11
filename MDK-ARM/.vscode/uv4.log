@@ -1,3 +1,3 @@
-Load "DAP_F750\\DAP_F750.axf" 
+Load "DAP_VehicleModel_F407\\DAP_VehicleModel_F407.axf" 
 Erase Done.Programming Done.Verify OK.Application running ...
-Flash Load finished at 22:09:22
+Flash Load finished at 12:38:45
