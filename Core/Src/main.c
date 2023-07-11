@@ -28,6 +28,7 @@
 #include <stdio.h>
 #include <string.h>
 #include "cJSON.h"
+#include "oled.h"
 /* USER CODE END Includes */
 
 /* Private typedef -----------------------------------------------------------*/
@@ -107,15 +108,11 @@ void Clear_TotalBuffer(void)
 }
 
 //生成属性上报消息包
-void Generate_dynamicPart(char *dest, double lng, double lat)
+void Generate_dynamicPart(char *dest, const char* lng, const char* lat)
 {
-  char lng_str[12];
-  char lat_str[12];
-  sprintf(lng_str, "%.6f", lng);
-  sprintf(lat_str, "%.6f", lat);
-  strcat(dest, lng_str);
+  strcat(dest, lng);
   strcat(dest, ",");
-  strcat(dest, lat_str);
+  strcat(dest, lat);
   strcat(dest, "]}}]}\"\r\n");
 }
 //获取cJSON对象
@@ -130,7 +127,7 @@ bool GetcJSON_Object()
   char *end_ptr = strstr(json_str, "\"\r\n");
   for (uint8_t i = 0; i <= 3; i++)
     end_ptr[i] = '\0';
-  printf("get cloud json data: \n%s\n", json_str);
+  //printf("get cloud json data: \n%s\n", json_str);
   //解析json字符串
   root = cJSON_Parse(json_str);
   if (!root)
@@ -163,7 +160,6 @@ void ResponseCommandMessage(bool status)
   uart_L610_send(responseMessage);
   //清理可变部分，以便下次再用
   memset(responseMessage + stableResponse_length_cmd, 0, BUFFE_SIZE - stableResponse_length_cmd);
-  printf("okk2\r\n");
 }
 void ResponseFlagMessage(bool status)
 {
@@ -179,8 +175,6 @@ void ResponseFlagMessage(bool status)
   uart_L610_send(responseProperties);
   //清理可变部分，以便下次再用
   memset(responseProperties + stableResponse_length_flag, 0, BUFFE_SIZE - stableResponse_length_flag);
-  // printf("%s\n", responseProperties);
-  printf("okk1\r\n");
 }
 
 /* USER CODE END PFP */
@@ -240,9 +234,8 @@ void USER_UART_IDLECallback(UART_HandleTypeDef *huart)
     Rxcounter = MAX_LENGTH - __HAL_DMA_GET_COUNTER(&hdma_usart2_rx);
     TotalCounter += Rxcounter;
     strcat(Buffer_total, RxBuffer);
+    //开启主进程轮询处理标志
     UART_Frame_Flag = True;
-    // if (initStatus)
-    // printf("%s", Buffer_total);
     memset(RxBuffer, 0, Rxcounter);
     HAL_UART_Receive_DMA(&huart2, (uint8_t *)RxBuffer, MAX_LENGTH);
   }
@@ -262,9 +255,13 @@ void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef *htim)
       cJSON *location = cJSON_GetArrayItem(location_array, location_index++);
       cJSON *lng = cJSON_GetArrayItem(location, 0);
       cJSON *lat = cJSON_GetArrayItem(location, 1);
+      //经纬度坐标转换成格式化字符串
+      char lng_str[12], lat_str[12];
+      sprintf(lng_str, "%.6f", lng->valuedouble);
+      sprintf(lat_str, "%.6f", lat->valuedouble);
       //生成上报属性的消息
       char dynamicPart[36] = {0};
-      Generate_dynamicPart(dynamicPart, lng->valuedouble, lat->valuedouble);
+      Generate_dynamicPart(dynamicPart, lng_str, lat_str);
       location = lng = lat = NULL;
       strcpy(Tx_str + stableTx_length, dynamicPart);
       uart_L610_send(Tx_str);
@@ -275,6 +272,10 @@ void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef *htim)
         Clear_cJSON();
         StopFlag = True;
       }
+      //进行OLED屏显
+      OLED_ShowString(0, 18, (uint8_t*)lng_str, 16, 1);
+      OLED_ShowString(0, 36, (uint8_t*)lat_str, 16, 1);
+      OLED_Refresh();
     }
   }
 }
@@ -282,9 +283,9 @@ void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef *htim)
 /* USER CODE END 0 */
 
 /**
- * @brief  The application entry point.
- * @retval int
- */
+  * @brief  The application entry point.
+  * @retval int
+  */
 int main(void)
 {
   /* USER CODE BEGIN 1 */
@@ -319,20 +320,21 @@ int main(void)
   MX_TIM4_Init();
   MX_TIM5_Init();
   /* USER CODE BEGIN 2 */
+  OLED_Init();
+  OLED_ColorTurn(0);
+  OLED_DisplayTurn(0);
+  OLED_ShowString(0, 0, (uint8_t*)"location:", 16, 1);
+  OLED_Refresh();
+
   //开启定时器中断
   HAL_TIM_Base_Start_IT(&htim2);
   HAL_TIM_Base_Start_IT(&htim3);
   HAL_TIM_Base_Start_IT(&htim4);
   HAL_TIM_Base_Start_IT(&htim5);
   //开启串口接收空闲中断
-  //清除IDLE标志
-  //  __HAL_UART_CLEAR_IDLEFLAG(&huart1);
   __HAL_UART_ENABLE_IT(&huart1, UART_IT_IDLE);
-  //  __HAL_UART_CLEAR_IDLEFLAG(&huart2);
   __HAL_UART_ENABLE_IT(&huart2, UART_IT_IDLE);
-  //  __HAL_UART_CLEAR_IDLEFLAG(&huart3);
   __HAL_UART_ENABLE_IT(&huart3, UART_IT_IDLE);
-  //  __HAL_UART_CLEAR_IDLEFLAG(&huart6);
   __HAL_UART_ENABLE_IT(&huart6, UART_IT_IDLE);
   //开启DMA接收
   // HAL_UART_Receive_DMA(&huart1, (uint8_t *)RxBuffer, MAX_LENGTH);
@@ -342,13 +344,11 @@ int main(void)
 
   /*******************************************用户初始化****************************************************/
   printf("stm32 init begin...\n");
-  HAL_GPIO_WritePin(LED0_GPIO_Port, LED0_Pin, GPIO_PIN_RESET);
 
   /****查询版本信息***/
   uart_L610_send("ATI\r\n");
-  HAL_Delay(2000);
-  // HAL_GPIO_TogglePin(LED0_GPIO_Port, LED0_Pin);
-  printf("%s", Buffer_total);
+  HAL_Delay(1000);
+  // printf("%s", Buffer_total);
   strx = strstr((const char *)Buffer_total, "Fibocom"); //校验数据是否正确
   while (strx == NULL)
   {
@@ -357,17 +357,17 @@ int main(void)
     Clear_TotalBuffer();
     uart_L610_send("ATI\r\n");
     HAL_Delay(1000);
-    printf("%s", Buffer_total);
+    // printf("%s", Buffer_total);
     strx = strstr((const char *)Buffer_total, "Fibocom");
   }
   printf("1.got the correct version...\n");
-  HAL_Delay(500);
+  HAL_Delay(200);
   Clear_TotalBuffer();
 
   /****请求IP****/
   uart_L610_send("AT+MIPCALL?\r\n"); //查询是否已有IP
   HAL_Delay(1000);
-  printf("%s", Buffer_total);
+  // printf("%s", Buffer_total);
   strx = strstr((const char *)Buffer_total, "+MIPCALL: 1");
   while (strx == NULL)
   {
@@ -376,18 +376,18 @@ int main(void)
     Clear_TotalBuffer();
     uart_L610_send("AT+MIPCALL=1\r\n");
     HAL_Delay(1000);
-    printf("%s", Buffer_total);
+    // printf("%s", Buffer_total);
     strx = strstr((const char *)Buffer_total, "+MIPCALL: ");
   }
   printf("2.got the IP address...\n");
-  HAL_Delay(500);
+  HAL_Delay(200);
   Clear_TotalBuffer();
 
   /****连接华为云****/
   //服务地址 端口号 设备ID 设备秘钥
   uart_L610_send("AT+HMCON=0,60,\"121.36.42.100\",\"8883\",\"649a72522a3b1d3de71e9e81_car01\",\"123456789\",0\r\n");
   HAL_Delay(2500); //这一步响应时间在1s多
-  printf("%s", Buffer_total);
+  // printf("%s", Buffer_total);
   strx = strstr((const char *)Buffer_total, "+HMCON OK"); //检测是否成功连接
   // while (strx == NULL)
   // {
@@ -400,8 +400,8 @@ int main(void)
   //   strx = strstr((const char *)Buffer_total, "+HMCON OK");
   // }
   printf("3.HuaweiCloud connected successfully...\n");
+  HAL_Delay(200);
   Clear_TotalBuffer();
-  HAL_GPIO_WritePin(LED0_GPIO_Port, LED0_Pin, GPIO_PIN_SET);
   printf("stm32 init success...\n");
   /* USER CODE END 2 */
 
@@ -413,8 +413,9 @@ int main(void)
   stableTx_length = strlen(Tx_str);
   stableResponse_length_cmd = strlen(responseMessage);
   stableResponse_length_flag = strlen(responseProperties);
+  uart_L610_send("AT+HMPUB=1,\"$oc/devices/649a72522a3b1d3de71e9e81_car01/sys/properties/report\",87,\"{\\\"services\\\":[{\\\"service_id\\\":\\\"car_01\\\",\\\"properties\\\":{\\\"location\\\":[32.129368,118.958233]}}]}\"\r\n");
   //绿色状态灯亮起
-  HAL_Delay(500);
+  HAL_Delay(600);
   HAL_GPIO_WritePin(LED1_GPIO_Port, LED1_Pin, GPIO_PIN_RESET);
   Clear_TotalBuffer();
   while (1)
@@ -428,8 +429,6 @@ int main(void)
     if (UART_Frame_Flag == True)
     {
       strx_head = strstr(Buffer_total, "+HMREC");
-      if(strx_head) 
-        printf("%s", Buffer_total);
       strx_end = strstr(Buffer_total, "\"SendArray\"}\"\r\n");
       // printf("head address: %p, end address: %p\n", strx_head, strx_end);
       //校验下发命令的包头包尾都正确
@@ -444,7 +443,7 @@ int main(void)
       //收到停车状态重置命令
       if (strx_head && !strx_end)
       {
-        printf("%s", Buffer_total);
+        // printf("%s", Buffer_total);
         strx_properties = strstr(Buffer_total, "\"car_stop\":0}}]}\"\r\n");
         if (strx_properties)
         {
@@ -468,22 +467,22 @@ int main(void)
 }
 
 /**
- * @brief System Clock Configuration
- * @retval None
- */
+  * @brief System Clock Configuration
+  * @retval None
+  */
 void SystemClock_Config(void)
 {
   RCC_OscInitTypeDef RCC_OscInitStruct = {0};
   RCC_ClkInitTypeDef RCC_ClkInitStruct = {0};
 
   /** Configure the main internal regulator output voltage
-   */
+  */
   __HAL_RCC_PWR_CLK_ENABLE();
   __HAL_PWR_VOLTAGESCALING_CONFIG(PWR_REGULATOR_VOLTAGE_SCALE1);
 
   /** Initializes the RCC Oscillators according to the specified parameters
-   * in the RCC_OscInitTypeDef structure.
-   */
+  * in the RCC_OscInitTypeDef structure.
+  */
   RCC_OscInitStruct.OscillatorType = RCC_OSCILLATORTYPE_HSE;
   RCC_OscInitStruct.HSEState = RCC_HSE_ON;
   RCC_OscInitStruct.PLL.PLLState = RCC_PLL_ON;
@@ -498,15 +497,16 @@ void SystemClock_Config(void)
   }
 
   /** Activate the Over-Drive mode
-   */
+  */
   if (HAL_PWREx_EnableOverDrive() != HAL_OK)
   {
     Error_Handler();
   }
 
   /** Initializes the CPU, AHB and APB buses clocks
-   */
-  RCC_ClkInitStruct.ClockType = RCC_CLOCKTYPE_HCLK | RCC_CLOCKTYPE_SYSCLK | RCC_CLOCKTYPE_PCLK1 | RCC_CLOCKTYPE_PCLK2;
+  */
+  RCC_ClkInitStruct.ClockType = RCC_CLOCKTYPE_HCLK|RCC_CLOCKTYPE_SYSCLK
+                              |RCC_CLOCKTYPE_PCLK1|RCC_CLOCKTYPE_PCLK2;
   RCC_ClkInitStruct.SYSCLKSource = RCC_SYSCLKSOURCE_PLLCLK;
   RCC_ClkInitStruct.AHBCLKDivider = RCC_SYSCLK_DIV1;
   RCC_ClkInitStruct.APB1CLKDivider = RCC_HCLK_DIV4;
@@ -523,9 +523,9 @@ void SystemClock_Config(void)
 /* USER CODE END 4 */
 
 /**
- * @brief  This function is executed in case of error occurrence.
- * @retval None
- */
+  * @brief  This function is executed in case of error occurrence.
+  * @retval None
+  */
 void Error_Handler(void)
 {
   /* USER CODE BEGIN Error_Handler_Debug */
@@ -537,14 +537,14 @@ void Error_Handler(void)
   /* USER CODE END Error_Handler_Debug */
 }
 
-#ifdef USE_FULL_ASSERT
+#ifdef  USE_FULL_ASSERT
 /**
- * @brief  Reports the name of the source file and the source line number
- *         where the assert_param error has occurred.
- * @param  file: pointer to the source file name
- * @param  line: assert_param error line source number
- * @retval None
- */
+  * @brief  Reports the name of the source file and the source line number
+  *         where the assert_param error has occurred.
+  * @param  file: pointer to the source file name
+  * @param  line: assert_param error line source number
+  * @retval None
+  */
 void assert_failed(uint8_t *file, uint32_t line)
 {
   /* USER CODE BEGIN 6 */

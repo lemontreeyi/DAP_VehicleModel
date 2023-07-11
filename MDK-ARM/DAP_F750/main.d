@@ -40,3 +40,5 @@ dap_f750\main.o: ../Core/Inc/gpio.h
 dap_f750\main.o: F:\Tools\Keil_v5\ARM\ARMCC\Bin\..\include\stdio.h
 dap_f750\main.o: F:\Tools\Keil_v5\ARM\ARMCC\Bin\..\include\string.h
 dap_f750\main.o: ../Core/Inc/cJSON.h
+dap_f750\main.o: ../Core/Inc/oled.h
+dap_f750\main.o: F:\Tools\Keil_v5\ARM\ARMCC\Bin\..\include\stdlib.h

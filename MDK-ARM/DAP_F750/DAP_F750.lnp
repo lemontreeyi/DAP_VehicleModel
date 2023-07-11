@@ -1,6 +1,5 @@
 --cpu Cortex-M7.fp.sp
 "dap_f750\startup_stm32f750xx.o"
-"dap_f750\cjson.o"
 "dap_f750\main.o"
 "dap_f750\gpio.o"
 "dap_f750\dma.o"
@@ -8,6 +7,8 @@
 "dap_f750\usart.o"
 "dap_f750\stm32f7xx_it.o"
 "dap_f750\stm32f7xx_hal_msp.o"
+"dap_f750\cjson.o"
+"dap_f750\oled.o"
 "dap_f750\stm32f7xx_hal_cortex.o"
 "dap_f750\stm32f7xx_hal_tim.o"
 "dap_f750\stm32f7xx_hal_tim_ex.o"

@@ -3,7 +3,7 @@
  * Auto generated Run-Time-Environment Configuration File
  *      *** Do not modify ! ***
  *
- * Project: 'DAP_F750_triplex' 
+ * Project: 'DAP_F750' 
  * Target:  'DAP_F750' 
  */
 

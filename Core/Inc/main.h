@@ -58,6 +58,10 @@ void USER_UART_IRQHandler(UART_HandleTypeDef *huart);
 /* USER CODE END EFP */
 
 /* Private defines -----------------------------------------------------------*/
+#define SCK_IO_Pin GPIO_PIN_2
+#define SCK_IO_GPIO_Port GPIOE
+#define SDA_IO_Pin GPIO_PIN_6
+#define SDA_IO_GPIO_Port GPIOE
 #define KEY2_Pin GPIO_PIN_13
 #define KEY2_GPIO_Port GPIOC
 #define KEY0_Pin GPIO_PIN_3
